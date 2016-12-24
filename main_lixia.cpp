@@ -1,3 +1,5 @@
+#include "blacklist.h"
+#include "cache.h"
 #include "DNS.h"
 
 char root_dns_ip[16] = "";
