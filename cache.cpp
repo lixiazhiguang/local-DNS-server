@@ -1,9 +1,10 @@
-#include "cache.h"
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include "blacklist.h"
-#include "common_function.h"
+#include "cache.h"
+
+unordered_map<string, set<pair<string, time_t>>> url_ip_map;
 
 time_t get_expire(int ttl) {
   if (ttl == 0) {
@@ -22,7 +23,7 @@ int is_expired(int expire_time) {
   return 0;
 }
 
-void remove_expired(const set<string, time_t>& url_set) {
+void remove_expired(set<pair<string, time_t>>& url_set) {
   for (auto iter = url_set.begin(); iter != url_set.end(); ++iter) {
     if (is_expired(iter->second)) {
       url_set.erase(iter);
@@ -34,17 +35,16 @@ void add_record(const char* url, const char* addr, time_t ttl) {
   string url_s(url);
   string addr_s(addr);
 
-  if (url_ip_map.count(url_s) == 0) {
+  if (url_ip_map.count(url_s) != 0) {
     remove_expired(url_ip_map[url_s]);
-    url_set.insert({addr_s, get_expire(ttl) + ttl});
+    url_ip_map[url_s].insert({addr_s, get_expire(ttl) + ttl});
   } else {
-    url_ip_map[url_s] =
-        vector<string, time_t>(1, {addr_s, get_expire(ttl) + ttl});
+    url_ip_map[url_s].insert({addr_s, get_expire(ttl) + ttl});
   }
 }
 
-bool pre_cache(const char* cache_file) {
-  FILE* cache_file = fopen(cache_file, "r");
+bool pre_cache(const char* cache_file_name) {
+  FILE* cache_file = fopen(cache_file_name, "r");
   if (!cache_file) {
     return false;
   }
@@ -52,7 +52,7 @@ bool pre_cache(const char* cache_file) {
   char url[65];
   char ip[16];
   while (fscanf(cache_file, "%s %s", url, ip) > 0) {
-    Log(2, "Pre-cache: add %s %s\n", url, ip);
+    LOG(2, "Pre-cache: add %s %s\n", url, ip);
     add_record(url, ip, 0);
   }
 
@@ -71,7 +71,7 @@ int get_ip(const char* url, char* ip) {
     return 0;
   }
 
-  auto ip_info = url_ip_map[url_s].start();
+  auto ip_info = url_ip_map[url_s].begin();
   string ip_s = ip_info->first;
   time_t expire_time = ip_info->second;
   if (in_black(ip_s)) {
@@ -81,7 +81,7 @@ int get_ip(const char* url, char* ip) {
     return 0;
   }
 
-  ip = ip_s.c_str();
+  strcpy(ip, ip_s.c_str());
   return 1;
 }
 
@@ -333,7 +333,8 @@ int get_ip(const char* url, char* ip) {
 //     fread(&record_index, sizeof(record_index), 1, file);
 //     for (int i = 0; i < a; ++i)
 //     {
-//         printf("%d:%d >%s<\n", i, record_index.index[i], record_index.url[i]);
+//         printf("%d:%d >%s<\n", i, record_index.index[i],
+//         record_index.url[i]);
 //     }
 
 //     for (int i = 0; i < a; ++i)

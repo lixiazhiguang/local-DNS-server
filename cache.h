@@ -11,14 +11,12 @@
 
 using namespace std;
 
-unordered_map<string, set<pair<string, time_t>>> url_ip_map;
-
 /**
  * @param  url   URL of the website
  * @param  addr  IP of the website
  * @param  ttl   Time to live
  */
-void add_record(const char* url, const char* addr, int ttl);
+void add_record(const char* url, const char* addr, time_t ttl);
 
 /**
  * Read prepared cache.txt
