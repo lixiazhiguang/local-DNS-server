@@ -24,7 +24,7 @@ typedef unsigned long uint32_t;
 struct ID_info {
   uint16_t ID;              //原有ID
   sockaddr_in client_addr;  //请求者套接字地址
-  int expire_time;
+  time_t expire_time;
 };
 
 struct DNS_header {
@@ -41,10 +41,9 @@ unordered_set<uint16_t> id_pool;
 
 const int PORT_NO = 53;     // local DNS port
 const int BUF_SIZE = 1024;  //最大报文缓存大小
-const int PORT_NO = 53;     // 53端口号
-const int EXPIRE_TIME = 10;
-const int CACHE_EXPIRE = 10;
 
+time_t get_expire(int ttl);
+int is_expired(int expire_time);
 void revc_req(const SOCKET& local_sock, const SOCKET& remote_sock,
               const sockaddr_in& remote_addr);
 void recv_ans(const SOCKET& local_sock, const SOCKET& remote_sock);

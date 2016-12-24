@@ -4,6 +4,9 @@ char root_dns_ip[16] = "";
 char cache_file[128] = "cache.txt";
 char black_file[128] = "blacklist.txt";
 
+SOCKET local_sock;
+SOCKET remote_sock;
+
 int min(int a, int b) { return a <= b ? a : b; }
 
 void proc_args(int argc, char* argv[]) {
@@ -36,13 +39,19 @@ void proc_args(int argc, char* argv[]) {
   }
 }
 
+void recv_asn_thread() {
+  while (true) {
+    recv_ans(local_sock, remote_sock);
+  }
+}
+
 int main(int argc, char* argv[]) {
   proc_args(argc, argv);
 
   WSADATA wsaData;
   WSAStartup(MAKEWORD(2, 2), &wsaData);
-  SOCKET local_sock = socket(AF_INET, SOCK_DGRAM, 0);
-  SOCKET remote_sock = socket(AF_INET, SOCK_DGRAM, 0);
+  local_sock = socket(AF_INET, SOCK_DGRAM, 0);
+  remote_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
   u_long mode = 1;  // set unblock
   if (ioctlsocket(local_sock, FIONBIO, &mode) == -1) {
@@ -82,8 +91,12 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
+  if (!CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)recv_asn_thread, NULL, 0,
+                    NULL)) {
+    LOG(1, "Create thread fail.\n");
+  }
+
   while (true) {
     recv_req(local_sock, remote_sock, remote_addr);
-    recv_ans(local_sock, remote_sock);
   }
 }

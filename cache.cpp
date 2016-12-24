@@ -5,6 +5,23 @@
 #include "blacklist.h"
 #include "common_function.h"
 
+time_t get_expire(int ttl) {
+  if (ttl == 0) {
+    return 0;
+  }
+
+  return time(NULL) + ttl;
+}
+
+int is_expired(int expire_time) {
+  if (expire_time == 0) return 0;
+
+  time_t now_time;
+  now_time = time(NULL);
+  if (now_time > expire_time) return 1;
+  return 0;
+}
+
 void remove_expired(const set<string, time_t>& url_set) {
   for (auto iter = url_set.begin(); iter != url_set.end(); ++iter) {
     if (is_expired(iter->second)) {
@@ -13,7 +30,7 @@ void remove_expired(const set<string, time_t>& url_set) {
   }
 }
 
-void add_record(const char* url, const char* addr, int ttl) {
+void add_record(const char* url, const char* addr, time_t ttl) {
   string url_s(url);
   string addr_s(addr);
 
