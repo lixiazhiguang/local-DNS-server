@@ -1,8 +1,0 @@
-int已有个数
-int最大个数
-struct
-  char[最大个数][65]已有url
-  int[最大个数]url对应ip在文件位置。如果没有就设-1
-MAX_RECORD个struct
-  char[16]ip
-  int 过期年月日时分秒
