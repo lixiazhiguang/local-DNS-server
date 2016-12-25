@@ -38,6 +38,8 @@ struct DNS_header {
 const int PORT_NO = 53;     // local DNS port
 const int BUF_SIZE = 1024;  //最大报文缓存大小
 
+void init_id_pool();
+void proc_url(const char* buf, char* dest);
 time_t get_expire(int ttl);
 int is_expired(int expire_time);
 void recv_req(const int local_sock, const int remote_sock,

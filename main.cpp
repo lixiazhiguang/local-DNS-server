@@ -68,10 +68,17 @@ void* recv_asw_thread(void* args) {
 }
 
 int main(int argc, char* argv[]) {
+  // char url[64];
+  // char ori_url[65] = ".www.baidu.com.";
+  // ori_url[0] = 3;
+  // ori_url[4] = 5;
+  // ori_url[10] = 3;
+  // ori_url[14] = 0;
+  // proc_url(ori_url, url);
+  // return 0;
+  //
   proc_args(argc, argv);
 
-  // WSADATA wsaData;
-  // WSAStartup(MAKEWORD(2, 2), &wsaData);
   local_sock = socket(AF_INET, SOCK_DGRAM, 0);
   remote_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -95,14 +102,17 @@ int main(int argc, char* argv[]) {
   memset(&remote_addr, 0, sizeof(remote_addr));
   remote_addr.sin_family = AF_INET;
   remote_addr.sin_addr.s_addr = inet_addr(root_dns_ip);
+  remote_addr.sin_port = htons(PORT_NO);
 
   int reuse = 1;  // set port reusable
-  if (setsockopt(local_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+  if (setsockopt(local_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) <
+      0) {
     LOG(1, "Set local ip reuse failed.\n");
     exit(1);
   }
 
-  if (::bind(local_sock, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+  if (::bind(local_sock, (struct sockaddr*)&local_addr, sizeof(local_addr)) <
+      0) {
     LOG(1, "Local socket bind failed.\n");
     exit(1);
   }
@@ -115,15 +125,17 @@ int main(int argc, char* argv[]) {
     LOG(1, "Local blacklist file failed.\n");
     exit(1);
   }
+  init_id_pool();
 
-  pthread_t tid;
-  if (pthread_create(&tid, NULL, recv_asw_thread, NULL) != 0) {
-    LOG(1, "Create thread fail.\n");
-    exit(1);
-  }
+  // pthread_t tid;
+  // if (pthread_create(&tid, NULL, recv_asw_thread, NULL) != 0) {
+    // LOG(1, "Create thread fail.\n");
+    // exit(1);
+  // }
 
   while (true) {
     recv_req(local_sock, remote_sock, remote_addr);
+    recv_ans(local_sock, remote_sock);
   }
 
   return 0;

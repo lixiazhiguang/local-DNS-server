@@ -4,7 +4,7 @@ OBJ = main.o DNS.o cache.o blacklist.o log.o
 all: dnsrelay
 
 dnsrelay: $(OBJ)
-	$(CXX) -o $(OBJ)
+	$(CXX) $(OBJ) -o dnsrelay
 
 main.o: main.cpp DNS.h cache.h blacklist.h log.h
 	$(CXX) -c main.cpp
@@ -20,3 +20,6 @@ blacklist.o: blacklist.cpp blacklist.h log.h
 
 log.o: log.cpp log.h
 	$(CXX) -c log.cpp
+
+clean:
+	rm *.o

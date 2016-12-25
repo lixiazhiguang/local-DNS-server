@@ -1,2 +1,2 @@
-www.sina.com.cn 121.194.0.239
-www.baidu.com 119.75.217.56 
+www.sina.com.cn 119.75.217.56
+www.baidu.com 0.0.0.0

@@ -2,28 +2,36 @@
 
 unordered_map<uint16_t, ID_info> id_table;
 unordered_set<uint16_t> id_pool;
+const int MAX_ID_NUM = 1000;
+
+void init_id_pool() {
+  for (int i = 0; i < MAX_ID_NUM; i++) {
+    id_pool.insert(i);
+  }
+}
 
 /**
  * Read url from buf to dest
  * @param  buf
  * @param  dest
  */
-void proc_url(const char* buf, char* dest) {
+void proc_url(char* buf, char* dest) {
   int len = strlen(buf);
-  int j = 0;
-  for (int i = 0; i < len;) {
+  int i = 0, j = 0;
+  while (i < len) {
     // buf[i] is a number
-    if (0 < buf[i] && buf[i] <= 63) {
-      int num = buf[i];
-      for (int k = 1; k <= num; k++) {
+    if (0 < buf[i] && buf[i] < 63) {
+      int num = buf[i++];
+      for (int k = 0; k < num; k++) {
         dest[j++] = buf[i++];
       }
     }
 
-    if (buf[i] != 0) {
+    if (0 < buf[i] && buf[i] < 63) {
       dest[j++] = '.';
     }
   }
+  dest[j] = '\0';
 }
 
 bool regis_id(const uint16_t id_client, uint16_t& id_server,
@@ -40,7 +48,7 @@ bool regis_id(const uint16_t id_client, uint16_t& id_server,
   id_info.client_addr = client_addr;
   id_table[id_server] = id_info;
 
-  LOG(2, "Store %d -> %d in ID table", id_server, id_client);
+  // LOG(2, "Store %d -> %d in ID table", id_server, id_client);
 
   return true;
 }
@@ -50,12 +58,15 @@ bool proj_id(const uint16_t id_server, ID_info& id_info) {
     return false;
   }
   id_info = id_table[id_server];
+  id_table.erase(id_server);
+  id_pool.insert(id_server);
   return true;
 }
 
 void send_resp(const int local_sock, const sockaddr_in& client_addr,
-               const char* req_buf, int len, const char* url, const char* ip) {
-  LOG(2, "Cache read %s -> %s", url, ip);
+               const char* req_buf, int len, const char* ori_url,
+               const char* url, const char* ip) {
+  LOG(2, "Cache read %s -> %s\n", url, ip);
 
   char resp_buf[BUF_SIZE];
   memcpy(resp_buf, req_buf, len);
@@ -64,11 +75,13 @@ void send_resp(const int local_sock, const sockaddr_in& client_addr,
   memcpy(resp_buf + 2, &tag, sizeof(uint16_t));
 
   uint16_t ancount = strcmp(ip, "0.0.0.0") == 0 ? htons(0x0000) : htons(0x0001);
-  memcpy(resp_buf + 7, &ancount, sizeof(uint16_t));
+  memcpy(resp_buf + 6, &ancount, sizeof(uint16_t));
 
-  uint16_t name = htons(0xc00c);
-  memcpy(resp_buf + len, &name, sizeof(uint16_t));
-  len += sizeof(uint16_t);
+  // uint16_t name = htons(0xc00c);
+  // memcpy(resp_buf + len, &name, sizeof(uint16_t));
+  // len += sizeof(uint16_t);
+  memcpy(resp_buf + len, ori_url, strlen(ori_url) + 1);
+  len += strlen(ori_url) + 1;
 
   uint16_t type = htons(0x0001);
   memcpy(resp_buf + len, &type, sizeof(uint16_t));
@@ -78,11 +91,11 @@ void send_resp(const int local_sock, const sockaddr_in& client_addr,
   memcpy(resp_buf + len, &class_, sizeof(uint16_t));
   len += sizeof(uint16_t);
 
-  uint32_t ttl = htons(0x7b);
+  uint32_t ttl = htonl(0x0000007b);
   memcpy(resp_buf + len, &ttl, sizeof(uint32_t));
   len += sizeof(uint32_t);
 
-  uint16_t rdlength = htons(0xc00c);
+  uint16_t rdlength = htons(0x0004);
   memcpy(resp_buf + len, &rdlength, sizeof(uint16_t));
   len += sizeof(uint16_t);
 
@@ -113,7 +126,7 @@ void recv_req(const int local_sock, const int remote_sock,
   memcpy(ori_url, req_buf + sizeof(DNS_header), len);
   char url[65];
   proc_url(ori_url, url);
-  LOG(2, "Client query %s\n.", url);
+  LOG(2, "Client query %s\n", url);
 
   char ip[16];
   int ret = get_ip(url, ip);
@@ -128,85 +141,85 @@ void recv_req(const int local_sock, const int remote_sock,
       memcpy(req_buf, &id_server, sizeof(uint16_t));
       sendto(remote_sock, req_buf, len, 0, (const sockaddr*)&remote_addr,
              sizeof(remote_addr));
-      LOG(2, "Send DNS req %s to root DNS server.n", url);
+      LOG(2, "Send DNS req %s to root DNS server.\n", url);
       // TODO: add multi thread here
     } else {
       LOG(2, "ID pool runs out!");
     }
   } else {
-    send_resp(local_sock, client_addr, req_buf, len, url, ip);
+    send_resp(local_sock, client_addr, req_buf, len, ori_url, url, ip);
   }
 }
 
 void proc_ans(char* ans_buf) {
-  int qdcount = ntohs((uint16_t) * (ans_buf + 4));
-  int ancount = ntohs((uint16_t) * (ans_buf + 6));
-
-  if (ancount > 0) {
-    LOG(2, "Reveive %d answer", ancount);
-  }
+  int qdcount = ntohs(*((uint16_t*)(ans_buf + 4)));
+  int ancount = ntohs(*((uint16_t*)(ans_buf + 6)));
 
   char* cur_ptr = ans_buf + 12;
   for (int i = 0; i < qdcount; i++) {
     // skip qname
     while (*cur_ptr > 0) {
-      cur_ptr += *cur_ptr + 1;
+      cur_ptr += (*cur_ptr) + 1;
     }
     cur_ptr += sizeof(char);      // skip last 0
     cur_ptr += sizeof(uint16_t);  // skip qtype
     cur_ptr += sizeof(uint16_t);  // skip qclass
   }
 
+  char url[65];
   for (int i = 0; i < ancount; i++) {
-    if ((uint16_t)*cur_ptr == 0xc000) {
+    if ((uint8_t)*cur_ptr == 0xc0) {
+      uint16_t loc = ntohs((uint16_t)*cur_ptr) & 0x000c;
+      proc_url(ans_buf + loc, url);
       cur_ptr += sizeof(uint16_t);
     } else {
-      char url[65];
+      printf("url = %s\n", cur_ptr);
       proc_url(cur_ptr, url);
       // skip name
-      while (*cur_ptr > 0) {
+      while (0 < *cur_ptr && *cur_ptr < 63) {
         cur_ptr += *cur_ptr + 1;
       }
-
-      uint16_t type = ntohs((uint16_t)*cur_ptr);
-      cur_ptr += sizeof(uint16_t);
-
-      uint16_t class_ = ntohs((uint16_t)*cur_ptr);
-      cur_ptr += sizeof(uint16_t);
-
-      uint16_t ttl_h = ntohs((uint16_t)*cur_ptr);
-      cur_ptr += sizeof(uint16_t);
-
-      uint16_t ttl_l = ntohs((uint16_t)*cur_ptr);
-      cur_ptr += sizeof(uint16_t);
-
-      uint32_t ttl = ((uint32_t)ttl_h) << sizeof(uint16_t) | ttl_l;
-
-      uint16_t rdlength = ntohs((uint16_t)*cur_ptr);
-      cur_ptr += sizeof(uint16_t);
-
-      if (type == uint16_t(1)) {
-        uint8_t ip1, ip2, ip3, ip4;
-        ip1 = (uint8_t)*cur_ptr++;
-        ip2 = (uint8_t)*cur_ptr++;
-        ip3 = (uint8_t)*cur_ptr++;
-        ip4 = (uint8_t)*cur_ptr++;
-
-        char ip[16];
-        memset(ip, 0, sizeof(ip));
-        sprintf(ip, "%d.%d.%d.%d", ip1, ip2, ip3, ip4);
-        LOG(2, "Answer: %s -> %s", url, ip);
-
-        add_record(url, ip, ttl);
-      } else {
-        cur_ptr += rdlength;
-      }
     }
+
+    uint16_t type = ntohs(*(uint16_t*)cur_ptr);
+    cur_ptr += sizeof(uint16_t);
+
+    uint16_t class_ = ntohs(*(uint16_t*)cur_ptr);
+    cur_ptr += sizeof(uint16_t);
+
+    uint32_t ttl = ntohl(*(uint32_t*)cur_ptr);
+    cur_ptr += sizeof(uint32_t);
+
+    uint16_t rdlength = ntohs(*(uint16_t*)cur_ptr);
+    cur_ptr += sizeof(uint16_t);
+
+    if (type == uint16_t(1)) {
+      uint8_t ip1, ip2, ip3, ip4;
+      ip1 = *(uint8_t*)cur_ptr++;
+      ip2 = *(uint8_t*)cur_ptr++;
+      ip3 = *(uint8_t*)cur_ptr++;
+      ip4 = *(uint8_t*)cur_ptr++;
+
+      char ip[16];
+      memset(ip, 0, sizeof(ip));
+      sprintf(ip, "%d.%d.%d.%d", ip1, ip2, ip3, ip4);
+      // LOG(2, "Answer: %s -> %s", url, ip);
+
+      add_record(url, ip, ttl);
+    } else {
+      cur_ptr += rdlength;
+    }
+  }
+
+  if (ancount > 0) {
+    LOG(2, "Got answer of %s\n", url);
   }
 }
 
 void recv_ans(const int local_sock, const int remote_sock) {
   char ans_buf[BUF_SIZE];
+  memset(ans_buf, 0, BUF_SIZE);
+
   sockaddr_in server_addr;
   socklen_t server_size = sizeof(server_addr);
   int len = recvfrom(remote_sock, ans_buf, sizeof(ans_buf), 0,
@@ -215,7 +228,6 @@ void recv_ans(const int local_sock, const int remote_sock) {
     // LOG(2, "Receive invalid answer from root DNS.");
     return;
   }
-
   proc_ans(ans_buf);
 
   uint16_t id_server;
