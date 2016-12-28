@@ -26,15 +26,6 @@ struct ID_info {
   sockaddr_in client_addr;
 };
 
-struct DNS_header {
-  uint16_t id;
-  uint16_t tag;
-  uint16_t num_ques;
-  uint16_t num_answ;
-  uint16_t num_serv;
-  uint16_t num_RRs;
-};
-
 const int PORT_NO = 53;     // local DNS port
 const int BUF_SIZE = 1024;  //最大报文缓存大小
 

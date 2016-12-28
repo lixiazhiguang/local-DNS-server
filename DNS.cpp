@@ -48,7 +48,7 @@ bool regis_id(const uint16_t id_client, uint16_t& id_server,
   id_info.client_addr = client_addr;
   id_table[id_server] = id_info;
 
-  // LOG(2, "Store %d -> %d in ID table", id_server, id_client);
+  LOG(3, "Store %d -> %d in ID table.\n", id_server, id_client);
 
   return true;
 }
@@ -60,6 +60,8 @@ bool proj_id(const uint16_t id_server, ID_info& id_info) {
   id_info = id_table[id_server];
   id_table.erase(id_server);
   id_pool.insert(id_server);
+
+  LOG(3, "Proj %d -> %d in ID table.\n", id_server, id_info.id_client);
   return true;
 }
 
@@ -71,7 +73,7 @@ void send_resp(const int local_sock, const sockaddr_in& client_addr,
   char resp_buf[BUF_SIZE];
   memcpy(resp_buf, req_buf, len);
 
-  uint16_t tag = htons(0x8180);
+  uint16_t tag = 0x8180;
   memcpy(resp_buf + 2, &tag, sizeof(uint16_t));
 
   uint16_t ancount = strcmp(ip, "0.0.0.0") == 0 ? htons(0x0000) : htons(0x0001);
@@ -103,6 +105,10 @@ void send_resp(const int local_sock, const sockaddr_in& client_addr,
   memcpy(resp_buf + len, &rdata, sizeof(uint32_t));
   len += sizeof(uint32_t);
 
+  LOG(2, "Send to client %s:%d\n", inet_ntoa(client_addr.sin_addr),
+      client_addr.sin_port);
+  VERBOSE(resp_buf);
+
   sendto(local_sock, resp_buf, len, 0, (const sockaddr*)&client_addr,
          sizeof(client_addr));
 }
@@ -118,7 +124,7 @@ void recv_req(const int local_sock, const int remote_sock,
                      &client_size);
 
   if (len <= 0) {
-    // LOG(2, "Receive invalid request from client.");
+    // LOG(2, "Receive invalid request from client.\n");
     return;
   }
 
@@ -126,12 +132,15 @@ void recv_req(const int local_sock, const int remote_sock,
   memcpy(ori_url, req_buf + sizeof(DNS_header), len);
   char url[65];
   proc_url(ori_url, url);
-  LOG(2, "Client query %s\n", url);
+
+  LOG(2, "Client %s:%d query %s\n", inet_ntoa(client_addr.sin_addr),
+      client_addr.sin_port, url);
+  VERBOSE(req_buf);
 
   char ip[16];
   int ret = get_ip(url, ip);
   if (ret == -1) {
-    LOG(2, "%s is in blacklist.", url);
+    LOG(2, "%s is in blacklist.\n", url);
   } else if (ret == 0) {
     uint16_t id_client;
     memcpy(&id_client, req_buf, sizeof(uint16_t));  // record request ID
@@ -139,12 +148,15 @@ void recv_req(const int local_sock, const int remote_sock,
     uint16_t id_server;
     if (regis_id(id_client, id_server, client_addr)) {
       memcpy(req_buf, &id_server, sizeof(uint16_t));
+
+      LOG(2, "Send to server %s:%d, query %s.\n", inet_ntoa(remote_addr.sin_addr),
+          remote_addr.sin_port, url);
+      VERBOSE(req_buf);
+
       sendto(remote_sock, req_buf, len, 0, (const sockaddr*)&remote_addr,
              sizeof(remote_addr));
-      LOG(2, "Send DNS req %s to root DNS server.\n", url);
-      // TODO: add multi thread here
     } else {
-      LOG(2, "ID pool runs out!");
+      LOG(2, "ID pool runs out!\n");
     }
   } else {
     send_resp(local_sock, client_addr, req_buf, len, ori_url, url, ip);
@@ -203,7 +215,7 @@ void proc_ans(char* ans_buf) {
       char ip[16];
       memset(ip, 0, sizeof(ip));
       sprintf(ip, "%d.%d.%d.%d", ip1, ip2, ip3, ip4);
-      // LOG(2, "Answer: %s -> %s", url, ip);
+      LOG(3, "Answer: %s -> %s\n", url, ip);
 
       add_record(url, ip, ttl);
     } else {
@@ -212,7 +224,7 @@ void proc_ans(char* ans_buf) {
   }
 
   if (ancount > 0) {
-    LOG(2, "Got answer of %s\n", url);
+    LOG(2, "Got answer of %s\n\n", url);
   }
 }
 
@@ -225,9 +237,14 @@ void recv_ans(const int local_sock, const int remote_sock) {
   int len = recvfrom(remote_sock, ans_buf, sizeof(ans_buf), 0,
                      (sockaddr*)&server_addr, &server_size);
   if (len <= 0) {
-    // LOG(2, "Receive invalid answer from root DNS.");
+    // LOG(2, "Receive invalid answer from root DNS.\n");
     return;
   }
+
+  LOG(2, "Receive from server:%s:%d\n", inet_ntoa(server_addr.sin_addr),
+      server_addr.sin_port);
+  VERBOSE(ans_buf);
+
   proc_ans(ans_buf);
 
   uint16_t id_server;
@@ -239,6 +256,11 @@ void recv_ans(const int local_sock, const int remote_sock) {
   }
 
   memcpy(ans_buf, &(id_info.id_client), sizeof(uint16_t));
+
+  LOG(2, "Send to client: %s:%d\n", inet_ntoa(id_info.client_addr.sin_addr),
+      id_info.client_addr.sin_port);
+  VERBOSE(ans_buf);
+
   sendto(local_sock, ans_buf, len, 0, (const sockaddr*)&(id_info.client_addr),
          sizeof(id_info.client_addr));
 
