@@ -73,7 +73,7 @@ void send_resp(const int local_sock, const sockaddr_in& client_addr,
   char resp_buf[BUF_SIZE];
   memcpy(resp_buf, req_buf, len);
 
-  uint16_t tag = 0x8180;
+  uint16_t tag = htons(0x8180);
   memcpy(resp_buf + 2, &tag, sizeof(uint16_t));
 
   uint16_t ancount = strcmp(ip, "0.0.0.0") == 0 ? htons(0x0000) : htons(0x0001);

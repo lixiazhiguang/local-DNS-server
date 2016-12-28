@@ -17,11 +17,13 @@ void LOG(int level, const char* fmt, ...) {
     return;
   }
 
-  time_t utc_time = time(NULL);
-  tm* local = localtime(&utc_time);
-  char *loc_time = asctime(local);
-  loc_time[strlen(loc_time) - 1] = '\0';
-  printf("%s: ", loc_time);
+  if (level < 3) {
+    time_t utc_time = time(NULL);
+    tm* local = localtime(&utc_time);
+    char *loc_time = asctime(local);
+    loc_time[strlen(loc_time) - 1] = '\0';
+    printf("%s: ", loc_time);
+  }
 
   va_list args;
 	va_start(args, fmt);
