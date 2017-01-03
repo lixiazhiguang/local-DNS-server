@@ -7,7 +7,7 @@
 using namespace std;
 
 char local_ip[16] = "0.0.0.0";
-char root_dns_ip[16] = "10.3.9.4";
+char root_dns_ip[16] = "192.168.43.1";
 char cache_file[128] = "cache.txt";
 char black_file[128] = "blacklist.txt";
 
